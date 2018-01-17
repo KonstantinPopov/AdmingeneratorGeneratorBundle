@@ -7,6 +7,7 @@ use Admingenerator\GeneratorBundle\Routing\Manipulator\RoutingManipulator;
 use Admingenerator\GeneratorBundle\Generator\BundleGenerator;
 
 use Sensio\Bundle\GeneratorBundle\Command\GenerateBundleCommand;
+use Sensio\Bundle\GeneratorBundle\Model\Bundle;
 
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -155,10 +156,9 @@ EOT
         $output->writeln('Generating the bundle code: <info>OK</info>');
 
         $errors = array();
-        $runner = $dialog->getRunner($output, $errors);
 
         // routing
-        $runner($this->updateRouting($dialog, $input, $output, $bundle, $format));
+        $this->updateRouting($output, $bundle);
 
         $dialog->writeGeneratorSummary($output, $errors);
     }
@@ -168,34 +168,35 @@ EOT
         return new BundleGenerator($this->getContainer()->get('filesystem'), __DIR__.'/../Resources/skeleton/bundle');
     }
 
-    protected function updateRouting(DialogHelper $dialog, InputInterface $input, OutputInterface $output, $bundle, $format)
+    protected function updateRouting(OutputInterface $output, Bundle $bundle)
     {
-        $auto = true;
-        if ($input->isInteractive()) {
-            $auto = $dialog->askConfirmation($output, $dialog->getQuestion('Confirm automatic update of the Routing', 'yes', '?'), true);
-        }
-
-        $output->write('Importing the bundle routing resource: ');
-        $routing = new RoutingManipulator($this->getContainer()->getParameter('kernel.root_dir').'/config/routing.yml');
-        $routing->setYamlPrefix($input->getOption('prefix'));
-
+        $targetRoutingPath = $this->getContainer()->getParameter('kernel.root_dir') . '/config/routing.yml';
+        $output->writeln(sprintf(
+            '> Importing the bundle\'s routes from the <info>%s</info> file',
+            $this->makePathRelative($targetRoutingPath)
+        ));
+        $routing = new RoutingManipulator($targetRoutingPath);
         try {
-            $ret = $auto ? $routing->addResource($bundle, 'admingenerator') : false;
+            $ret = $routing->addResource($bundle->getName(), $bundle->getConfigurationFormat());
             if (!$ret) {
-                $help = sprintf("        <comment>resource: \"@%s/Controller/%s/\"</comment>\n        <comment>type:     admingenerator</comment>\n", $bundle, ucfirst($input->getOption('prefix')));
+                if ('annotation' === $bundle->getConfigurationFormat()) {
+                    $help = sprintf("        <comment>resource: \"@%s/Controller/\"</comment>\n        <comment>type:     annotation</comment>\n", $bundle->getName());
+                } else {
+                    $help = sprintf("        <comment>resource: \"@%s/Resources/config/routing.%s\"</comment>\n", $bundle->getName(), $bundle->getConfigurationFormat());
+                }
                 $help .= "        <comment>prefix:   /</comment>\n";
 
                 return array(
-                    '- Import the bundle\'s routing resource in the app main routing file:',
+                    '- Import the bundle\'s routing resource in the app\'s main routing file:',
                     '',
-                    sprintf('    <comment>%s:</comment>', $bundle),
+                    sprintf('    <comment>%s:</comment>', $bundle->getName()),
                     $help,
                     '',
                 );
             }
         } catch (\RuntimeException $e) {
             return array(
-                sprintf('Bundle <comment>%s</comment> is already imported.', $bundle),
+                sprintf('Bundle <comment>%s</comment> is already imported.', $bundle->getName()),
                 '',
             );
         }
