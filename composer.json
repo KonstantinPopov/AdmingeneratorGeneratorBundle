@@ -1,5 +1,5 @@
 {
-	"name" : "cedriclombardot/admingenerator-generator-bundle",
+	"name" : "kstppv/admingenerator-generator-bundle-fork",
 	"minimum-stability" : "dev",
 	"description" : "Admingenerator for Symfony2 based on YAML configuration and Twig templating",
 	"keywords" : [
